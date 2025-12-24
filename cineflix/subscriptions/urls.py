@@ -2,7 +2,8 @@ from django.urls import path
 
 from . import views
 
-urlpatterns=[
+urlpatterns = [
 
-    path('subscription-list/',views.SubscriptionView.as_view(),name='subscription-list')
+    path('subscription-list/',views.SubscriptionsView.as_view(),name='subscription-list'),
+
 ]

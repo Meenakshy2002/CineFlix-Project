@@ -1,4 +1,4 @@
-from django.shortcuts import render,redirect
+from django.shortcuts import render,redirect       
 
 from django.views import View
 
@@ -12,6 +12,11 @@ from django.utils.decorators import method_decorator
 
 from authentication.permissions import permitted_user_roles
 
+from cineflix.utils import get_recommended_movies
+
+from subscriptions.models import UserSubscriptions
+
+from django.contrib import messages
 
 # Create your views here.
 
@@ -31,21 +36,21 @@ class MoviesListView (View):
 
      def get (self,request,*args,**kwargs) :
 
-        query=request.GET.get('query')
+        query = request.GET.get('query')
 
         movies=Movie.objects.filter(active_status=True)
 
-        if query:
+        if query :
 
-            movies=movies.filter(Q(name__icontains=query)|  
-                                 Q(description__icontains=query)|
-                                 Q(industry__name__icontains=query)|
-                                 Q(certification__icontains=query)|
-                                 Q(genre__name__icontains=query)|
-                                 Q(artists__name__icontains=query)|
-                                 Q(languages__name__icontains=query)|
-                                 Q(tags__icontains=query)       
-                                ).distinct()      
+            movies = movies.filter(Q(name__icontains=query)|
+                                   Q(description__icontains=query)|
+                                   Q(industry__name__icontains=query)|
+                                   Q(certification__icontains=query)|
+                                   Q(genre__name__icontains=query)|
+                                   Q(artists__name__icontains=query)|
+                                   Q(languages__name__icontains=query)|
+                                   Q(tags__icontains=query)
+                                   ).distinct()
 
         data = {'page':'Movies','movies':movies,'query':query}
 
@@ -55,28 +60,28 @@ class MoviesListView (View):
 
 #     def get (self,request,*args,**kwargs):
 
-#         industry_choices=IndustryChoices
+#         industry_choices = IndustryChoices
 
-#         genre_choices=GenreChoices
+#         genre_choices = GenreChoices
 
-#         languages_choices=LanguagesChoices
+#         languages_choices = LanguagesChoices
 
-#         artists_choices=ArtistChoices
+#         artists_choices = ArtistChoices
 
-#         certification_choices=CertificationChoices
+#         certification_choices = CertificationChoices
 
 #         data = {'page':'Create Movie',
-#                'industry_choices':industry_choices,
-#                'genre_choices':genre_choices,
-#                'languages_choices':languages_choices,
-#                'artists_choices':artists_choices,
-#                'certification_choices':certification_choices
-#                }
+#                  'industry_choices': industry_choices,
+#                  'genre_choices':genre_choices,
+#                  'languages_choices':languages_choices,
+#                  'artists_choices':artists_choices,
+#                  'certification_choices':certification_choices
+#                  }
 
 #         return render(request,'movies/movie-create.html',context=data)
     
 #     def post(self,request,*args,**kwargs):
-        
+
 #         movie_data=request.POST
 
 #         name=movie_data.get('name')
@@ -108,54 +113,59 @@ class MoviesListView (View):
 #                              description=description,
 #                              release_date=release_date,
 #                              industry=industry,
-#                              languages=languages,
 #                              runtime=runtime,
 #                              certification=certification,
 #                              genre=genre,
 #                              artists=artists,
 #                              video=video,
-#                              tags=tags)
+#                              tags=tags,
+#                              languages=languages)
 
+       
 
 #         return redirect('movie-list')
+
 @method_decorator(permitted_user_roles(['Admin']),name='dispatch')
-class MovieCreateView(View):
+class MovieCreateView (View):
 
+    form_class = MovieForm
 
-        form_class=MovieForm
+    template = 'movies/movie-create.html'
 
-        template='movies/movie-create.html'
+    def get (self,request,*args,**kwargs):
 
-        def get (self,request,*args,**kwargs):
-             
-             form=self.form_class()
-             
-             data = {'page':'Create Movie',
+        form = self.form_class()    
+
+        data= {'page':'Create Movie',
                'form':form
                }
-             
-             return render(request,self.template,context=data)
+
+        return render(request,self.template,context=data)
     
-        def post (self,request,*args,**kwargs):
-            
-            form = self.form_class(request.POST,request.FILES)
-            
-            if form.is_valid():
-                
-                form.save()
-                
-                return redirect('movie-list')
-            
-            data = {'form':form,'page':'Create Movie'}
-            
-            return render(request,self.template,context=data)
+    def post (self,request,*args,**kwargs):
+
+        form = self.form_class(request.POST,request.FILES)
+
+        if form.is_valid():
+
+            form.save()
+
+            messages.success(request,'movie created successfully')
+    
+            return redirect('movie-list')
+        
+        data = {'form':form,'page':'Create Movie'}
+
+        messages.error(request,'movie creation failed')
+        
+        return render(request,self.template,context=data)
     
 # implementing with id
 # class MovieDetailsView(View):
 
 #     template = 'movies/movie-details.html'
 
-#     def get(self,request,args,*kwargs):
+#     def get(self,request,*args,**kwargs):
 
 #         id = kwargs.get('id')
 
@@ -166,48 +176,42 @@ class MovieCreateView(View):
 #         return render(request,self.template,context=data)
 
 
-class MovieDetailsView (View) :
+class MovieDetailsView(View):
 
     template = 'movies/movie-details.html'
 
-    def get (self,request,*args,**kwargs) :
+    def get(self,request,*args,**kwargs):
 
         uuid = kwargs.get('uuid')
 
-        movie = Movie.objects.get(uuid = uuid)
+        movie = Movie.objects.get(uuid=uuid)
 
-        data = {'movie' : movie,
-                
-                'page': movie.name
-                
-                }
+        recommended_movies = get_recommended_movies(movie)
+
+        data = {'movie': movie,'page': movie.name,'recommended_movies':recommended_movies } 
 
         return render(request,self.template,context=data)
     
-@method_decorator(permitted_user_roles(['Admin']),name='dispatch')   
-class MovieEditView(View) :
+@method_decorator(permitted_user_roles(['Admin']),name='dispatch')
+class MovieEditView(View):
 
     form_class = MovieForm
 
     template = 'movies/movie-edit.html'
 
-    def get (self,request,*args,**kwargs) :
+    def get(self,request,*args,**kwargs):
 
         uuid = kwargs.get('uuid')
 
         movie = Movie.objects.get(uuid=uuid)
 
         form = self.form_class(instance=movie)
-        
-        data = {'form' : form,
-                
-                'page': movie.name
-                
-                }
+
+        data ={'form':form,'page':movie.name}
 
         return render(request,self.template,context=data)
     
-    def post (self,request,*args,**kwargs) :
+    def post(self,request,*args,**kwargs):
 
         uuid = kwargs.get('uuid')
 
@@ -215,21 +219,18 @@ class MovieEditView(View) :
 
         form = self.form_class(request.POST,request.FILES,instance=movie)
 
-        if form.is_valid() :
+        if form.is_valid():
 
             form.save()
 
-            return redirect('movie-details',uuid = uuid)
-        
-        data = {'form' : form,
-                
-                'page': movie.name
-                
-                }
-        
-        return render(request,self.template,context=data)
+            messages.success(request,'movie updated successfully')
 
-@method_decorator(permitted_user_roles(['Admin']),name='dispatch')        
+            return redirect('movie-details',uuid=uuid)
+        
+        data = {'form':form,'page':movie.name}
+
+        return render(request,self.template,context=data)
+    
 class MovieDeleteView (View) :
 
     def get (self,request,*args,**kwargs) :
@@ -238,11 +239,47 @@ class MovieDeleteView (View) :
 
         movie = Movie.objects.get(uuid=uuid)
 
-        # movie.delete()   --- This is Hard delete 
+        # movie.delete()   --- Hard delete 
 
-        movie.active_status=False  # --- This is Soft Delete
+        movie.active_status = False   # Soft Delete
 
         movie.save()
 
+        messages.success(request,'movie deleted successfully')
+
         return redirect('movie-list')
     
+
+
+@method_decorator(permitted_user_roles(['User']),name='dispatch')
+class PlayMovie(View):
+
+    template = 'movies/movie-play.html'
+
+    def get(self,request,*args,**kwargs):
+
+        user = request.user
+
+        try:
+            
+            plan = UserSubscriptions.objects.filter(profile=user,active=True).latest('created_at')
+
+        except:
+
+            pass
+
+        if plan:
+
+            uuid = kwargs.get('uuid')
+
+            movie = Movie.objects.get(uuid=uuid)
+
+            data = {'movie':movie}
+
+            return render(request,self.template,context=data)
+        
+        else:
+
+            messages.error(request,'you must subscribe a plan before watching')
+
+            return redirect('subscription-list')
